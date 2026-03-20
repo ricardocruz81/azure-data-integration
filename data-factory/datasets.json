@@ -1,0 +1,65 @@
+{
+  "datasets": [
+    {
+      "name": "ds_BlobRentCSV",
+      "type": "DelimitedText",
+      "description": "Source CSV file in Azure Blob Storage raw container",
+      "linkedServiceName": "ls_AzureBlobStorage",
+      "typeProperties": {
+        "location": {
+          "type": "AzureBlobStorageLocation",
+          "container": "raw",
+          "fileName": "rent-data.csv"
+        },
+        "columnDelimiter": ",",
+        "rowDelimiter": "\n",
+        "firstRowAsHeader": true,
+        "quoteChar": "\"",
+        "escapeChar": "\\"
+      },
+      "schema": [
+        { "name": "PropertyID",    "type": "String" },
+        { "name": "TenantID",      "type": "String" },
+        { "name": "RentAmount",    "type": "String" },
+        { "name": "RentDate",      "type": "String" },
+        { "name": "PaymentMethod", "type": "String" }
+      ]
+    },
+    {
+      "name": "ds_BlobProcessed",
+      "type": "DelimitedText",
+      "description": "Archive location for processed files",
+      "linkedServiceName": "ls_AzureBlobStorage",
+      "typeProperties": {
+        "location": {
+          "type": "AzureBlobStorageLocation",
+          "container": "processed",
+          "fileName": {
+            "value": "@concat('rent-data-', formatDateTime(utcNow(), 'yyyyMMdd-HHmmss'), '.csv')",
+            "type": "Expression"
+          }
+        }
+      }
+    },
+    {
+      "name": "ds_SqlStagingRent",
+      "type": "AzureSqlTable",
+      "description": "Staging table in Azure SQL Database",
+      "linkedServiceName": "ls_AzureSqlDatabase",
+      "typeProperties": {
+        "schema": "stg",
+        "table": "Rent"
+      }
+    },
+    {
+      "name": "ds_SqlProductionRent",
+      "type": "AzureSqlTable",
+      "description": "Production rent table",
+      "linkedServiceName": "ls_AzureSqlDatabase",
+      "typeProperties": {
+        "schema": "dbo",
+        "table": "Rent"
+      }
+    }
+  ]
+}

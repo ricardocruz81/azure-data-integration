@@ -1,0 +1,37 @@
+{
+  "linkedServices": [
+    {
+      "name": "ls_AzureBlobStorage",
+      "type": "AzureBlobStorage",
+      "description": "Landing zone for raw CSV files",
+      "typeProperties": {
+        "connectionString": {
+          "type": "AzureKeyVaultSecret",
+          "store": { "referenceName": "ls_KeyVault", "type": "LinkedServiceReference" },
+          "secretName": "blob-storage-connection-string"
+        }
+      }
+    },
+    {
+      "name": "ls_AzureSqlDatabase",
+      "type": "AzureSqlDatabase",
+      "description": "Azure SQL Database serving layer",
+      "typeProperties": {
+        "connectionString": {
+          "type": "AzureKeyVaultSecret",
+          "store": { "referenceName": "ls_KeyVault", "type": "LinkedServiceReference" },
+          "secretName": "azure-sql-connection-string"
+        }
+      }
+    },
+    {
+      "name": "ls_KeyVault",
+      "type": "AzureKeyVault",
+      "description": "Key Vault for all secrets — no credentials stored in ADF",
+      "typeProperties": {
+        "baseUrl": "https://kv-property-pipeline.vault.azure.net/"
+      }
+    }
+  ],
+  "note": "Replace Key Vault URL and secret names with your own. ADF Managed Identity must have 'Key Vault Secrets User' role."
+}

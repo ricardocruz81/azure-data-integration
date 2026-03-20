@@ -1,0 +1,50 @@
+{
+  "triggers": [
+    {
+      "name": "trigger_DailyRentLoad",
+      "description": "Runs the rent ingestion pipeline every weekday at 06:00 GMT",
+      "type": "ScheduleTrigger",
+      "typeProperties": {
+        "recurrence": {
+          "frequency": "Week",
+          "interval": 1,
+          "startTime": "2025-01-01T06:00:00",
+          "timeZone": "GMT Standard Time",
+          "schedule": {
+            "weekDays": ["Monday","Tuesday","Wednesday","Thursday","Friday"]
+          }
+        }
+      },
+      "pipelines": [
+        {
+          "pipelineReference": { "type": "PipelineReference", "referenceName": "pl_IngestRentData" },
+          "parameters": { "FileName": "rent-data.csv" }
+        }
+      ]
+    },
+    {
+      "name": "trigger_BlobArrival",
+      "description": "Triggers pipeline immediately when a new CSV lands in the raw container",
+      "type": "BlobEventsTrigger",
+      "typeProperties": {
+        "blobPathBeginsWith": "/raw/blobs/",
+        "blobPathEndsWith": ".csv",
+        "ignoreEmptyBlobs": true,
+        "scope": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Storage/storageAccounts/{storageAccountName}",
+        "events": ["Microsoft.Storage.BlobCreated"]
+      },
+      "pipelines": [
+        {
+          "pipelineReference": { "type": "PipelineReference", "referenceName": "pl_IngestRentData" },
+          "parameters": {
+            "FileName": {
+              "value": "@trigger().outputs.body.fileName",
+              "type": "Expression"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "note": "Two trigger options provided: 1) Scheduled (daily at 06:00 weekdays) 2) Event-based (fires on any CSV upload to raw container). Enable only one at a time to avoid duplicate processing."
+}

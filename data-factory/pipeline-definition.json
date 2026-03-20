@@ -1,0 +1,98 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "factoryName": { "type": "string", "defaultValue": "adf-property-pipeline" },
+    "sqlServerName": { "type": "string" },
+    "storageAccountName": { "type": "string" }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DataFactory/factories/pipelines",
+      "apiVersion": "2018-06-01",
+      "name": "[concat(parameters('factoryName'), '/pl_IngestRentData')]",
+      "properties": {
+        "description": "Ingests CSV rent data from Blob Storage and loads to Azure SQL Database",
+        "activities": [
+          {
+            "name": "GetMetadata_CheckFile",
+            "type": "GetMetadata",
+            "typeProperties": {
+              "dataset": { "referenceName": "ds_BlobRentCSV", "type": "DatasetReference" },
+              "fieldList": ["exists", "itemName", "lastModified"]
+            }
+          },
+          {
+            "name": "IfCondition_FileExists",
+            "type": "IfCondition",
+            "dependsOn": [{ "activity": "GetMetadata_CheckFile", "dependencyConditions": ["Succeeded"] }],
+            "typeProperties": {
+              "expression": {
+                "value": "@activity('GetMetadata_CheckFile').output.exists",
+                "type": "Expression"
+              },
+              "ifTrueActivities": [
+                {
+                  "name": "Copy_BlobToStaging",
+                  "type": "Copy",
+                  "typeProperties": {
+                    "source": {
+                      "type": "DelimitedTextSource",
+                      "storeSettings": { "type": "AzureBlobStorageReadSettings", "recursive": false },
+                      "formatSettings": { "type": "DelimitedTextReadSettings", "firstRowAsHeader": true }
+                    },
+                    "sink": {
+                      "type": "AzureSqlSink",
+                      "preCopyScript": "TRUNCATE TABLE stg.Rent",
+                      "writeBehavior": "insert",
+                      "sqlWriterUseTableLock": true
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                      "type": "TabularTranslator",
+                      "mappings": [
+                        { "source": { "name": "PropertyID" }, "sink": { "name": "PropertyID" } },
+                        { "source": { "name": "TenantID" }, "sink": { "name": "TenantID" } },
+                        { "source": { "name": "RentAmount" }, "sink": { "name": "RentAmount" } },
+                        { "source": { "name": "RentDate" }, "sink": { "name": "RentDate" } },
+                        { "source": { "name": "PaymentMethod" }, "sink": { "name": "PaymentMethod" } }
+                      ]
+                    }
+                  },
+                  "inputs": [{ "referenceName": "ds_BlobRentCSV", "type": "DatasetReference" }],
+                  "outputs": [{ "referenceName": "ds_SqlStagingRent", "type": "DatasetReference" }]
+                },
+                {
+                  "name": "StoredProc_ValidateAndLoad",
+                  "type": "SqlServerStoredProcedure",
+                  "dependsOn": [{ "activity": "Copy_BlobToStaging", "dependencyConditions": ["Succeeded"] }],
+                  "typeProperties": {
+                    "storedProcedureName": "etl.usp_ValidateAndLoadRent",
+                    "storedProcedureParameters": {
+                      "BatchID": { "value": { "value": "@pipeline().RunId", "type": "Expression" }, "type": "String" }
+                    }
+                  }
+                },
+                {
+                  "name": "MoveFile_ToProcessed",
+                  "type": "Copy",
+                  "dependsOn": [{ "activity": "StoredProc_ValidateAndLoad", "dependencyConditions": ["Succeeded"] }],
+                  "typeProperties": {
+                    "source": { "type": "DelimitedTextSource" },
+                    "sink": { "type": "DelimitedTextSink" },
+                    "deleteFilesAfterCompletion": true
+                  },
+                  "inputs": [{ "referenceName": "ds_BlobRentCSV", "type": "DatasetReference" }],
+                  "outputs": [{ "referenceName": "ds_BlobProcessed", "type": "DatasetReference" }]
+                }
+              ]
+            }
+          }
+        ],
+        "parameters": {
+          "FileName": { "type": "string", "defaultValue": "rent-data.csv" }
+        }
+      }
+    }
+  ]
+}
